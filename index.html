@@ -211,6 +211,7 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
       <button id="hintBtn">Hint</button>
       <button id="solveBtn">Solve</button>
       <button id="checkBtn">Check</button>
+      <button id="clearBoardBtn">Clear Board</button>
       <button id="revealBtn">Show Solution</button>
     </div>
   </div>
@@ -644,20 +645,29 @@ function generate(){
   probability=densitySetting==="balanced" ? 50 : Number(densitySetting);
 
   answer=[]; importedWithoutAnswer=false; current=Array(size*size).fill(-1); history=[]; revealed=false; questionMarks.clear(); logic8Reveals.clear(); logic7WasUsed=false;
-  if(densitySetting==="balanced"){
-    answer=generateBalancedBoard(size);
-  }else{
-    for(let i=0;i<size*size;i++) answer.push(Math.random()*100 < probability ? 1 : 0);
+
+  function buildGeneratedHints(){
+    rowHints=[]; colHints=[]; rowSums=[]; colSums=[];
+    for(let r=0;r<size;r++){
+      const vals=[]; for(let c=0;c<size;c++) vals.push(answer[idx(r,c)]);
+      const h=runHints(vals); rowHints.push(h); rowSums.push(hintSum(h));
+    }
+    for(let c=0;c<size;c++){
+      const vals=[]; for(let r=0;r<size;r++) vals.push(answer[idx(r,c)]);
+      const h=runHints(vals); colHints.push(h); colSums.push(hintSum(h));
+    }
   }
 
-  rowHints=[]; colHints=[]; rowSums=[]; colSums=[];
-  for(let r=0;r<size;r++){
-    const vals=[]; for(let c=0;c<size;c++) vals.push(answer[idx(r,c)]);
-    const h=runHints(vals); rowHints.push(h); rowSums.push(hintSum(h));
-  }
-  for(let c=0;c<size;c++){
-    const vals=[]; for(let r=0;r<size;r++) vals.push(answer[idx(r,c)]);
-    const h=runHints(vals); colHints.push(h); colSums.push(hintSum(h));
+  if(densitySetting==="balanced"){
+    // For Balance puzzles up to 15×15, reject boards that would require
+    // Logic 8 (direct answer reveal). Regenerate until Logic 1–7 can finish it.
+    do{
+      answer=generateBalancedBoard(size);
+      buildGeneratedHints();
+    }while(size<=15 && balanceWouldNeedLogic8());
+  }else{
+    for(let i=0;i<size*size;i++) answer.push(Math.random()*100 < probability ? 1 : 0);
+    buildGeneratedHints();
   }
 
   setResponsiveCellSize();
@@ -783,6 +793,70 @@ function forcedLineCells(clues,vals){
     if(patterns.every(p=>p[i]===v)) forced.push([i,v]);
   }
   return forced;
+}
+
+function balanceWouldNeedLogic8(){
+  let grid=Array(size*size).fill(-1);
+
+  function propagate(g){
+    let changed=true, guard=0;
+    while(changed && guard++<size*size+20){
+      changed=false;
+      for(let r=0;r<size;r++){
+        const vals=Array.from({length:size},(_,c)=>g[idx(r,c)]);
+        const pats=possibleLinePatterns(rowHints[r],vals);
+        if(!pats.length)return false;
+        for(let c=0;c<size;c++) if(g[idx(r,c)]===-1){
+          const v=pats[0][c];
+          if(pats.every(p=>p[c]===v)){g[idx(r,c)]=v;changed=true;}
+        }
+      }
+      for(let c=0;c<size;c++){
+        const vals=Array.from({length:size},(_,r)=>g[idx(r,c)]);
+        const pats=possibleLinePatterns(colHints[c],vals);
+        if(!pats.length)return false;
+        for(let r=0;r<size;r++) if(g[idx(r,c)]===-1){
+          const v=pats[0][r];
+          if(pats.every(p=>p[r]===v)){g[idx(r,c)]=v;changed=true;}
+        }
+      }
+    }
+    return true;
+  }
+
+  if(!propagate(grid))return true;
+
+  let outerGuard=0;
+  while(grid.some(v=>v===-1) && outerGuard++<size*size+10){
+    let moved=false;
+    const unknown=[];
+    for(let i=0;i<grid.length;i++)if(grid[i]===-1)unknown.push(i);
+
+    for(const i of unknown){
+      const black=grid.slice(), white=grid.slice();
+      black[i]=1; white[i]=0;
+      const blackOK=propagate(black), whiteOK=propagate(white);
+
+      if(!blackOK && whiteOK){ grid=white; moved=true; break; }
+      if(!whiteOK && blackOK){ grid=black; moved=true; break; }
+      if(!blackOK && !whiteOK)return true;
+
+      const common=[];
+      for(let j=0;j<grid.length;j++){
+        if(grid[j]===-1 && j!==i && black[j]!==-1 && black[j]===white[j]){
+          common.push([j,black[j]]);
+        }
+      }
+      if(common.length){
+        for(const [j,v] of common)grid[j]=v;
+        if(!propagate(grid))return true;
+        moved=true;
+        break;
+      }
+    }
+    if(!moved)return true;
+  }
+  return grid.some(v=>v===-1);
 }
 
 function finishLine(type,n){
@@ -1564,6 +1638,20 @@ function toggleReveal(){
   $("#revealBtn").textContent=revealed?"Hide Solution":"Show Solution";
   $("#status").textContent=revealed?"Answer shown.":"";
 }
+function clearBoard(){
+  clearWinBanner();
+  current=Array(size*size).fill(-1);
+  history=[];
+  questionMarks.clear();
+  logic8Reveals.clear();
+  revealed=false;
+  $("#revealBtn").textContent="Show Solution";
+  paintAll();
+  updateStats();
+  check(false);
+  $("#status").textContent="Board cleared.";
+}
+
 
 $("#newBtn").addEventListener("click",generate);
 $("#manualBtn").addEventListener("click",openManualEntry);
@@ -1582,6 +1670,7 @@ $("#undoBtn").addEventListener("click",undo);
 $("#hintBtn").addEventListener("click",hint);
 $("#solveBtn").addEventListener("click",solve);
 $("#checkBtn").addEventListener("click",checkNow);
+$("#clearBoardBtn").addEventListener("click",clearBoard);
 $("#revealBtn").addEventListener("click",toggleReveal);
 $("#size").addEventListener("change",generate);
 $("#density").addEventListener("change",generate);
