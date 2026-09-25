@@ -229,6 +229,7 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
     <button type="button" class="mobileTool" data-mode="erase">× Clear</button>
     <button type="button" class="mobileTool" data-mode="pan">↔ Move</button>
     <button type="button" class="mobileUndo" id="mobileUndoBtn">↶ Undo</button>
+    <button type="button" class="mobileUndo" id="mobileHintBtn">💡 Hint</button>
   </div>
 
   <div class="workspace">
@@ -733,10 +734,13 @@ function bindBoard(){
       else wanted=touchMode==="white"?0:1;
     }else wanted=e.button===2?0:1;
 
-    // Mouse retains toggle behavior. Touch mode paints the selected state;
-    // tapping the same single cell again toggles it back to empty.
+    // Touch single-tap cycle:
+    // Black mode: empty -> black -> white -> empty.
+    // White mode: empty -> white -> black -> empty.
+    // Drag still paints the currently selected mode consistently.
     let value=wanted;
-    if(isTouch && wanted!==-1 && current[i]===wanted) value=-1;
+    if(isTouch && touchMode==="black") value=current[i]===-1?1:current[i]===1?0:-1;
+    else if(isTouch && touchMode==="white") value=current[i]===-1?0:current[i]===0?1:-1;
     else if(!isTouch) value=current[i]===wanted?-1:wanted;
     drag={r,c,endR:r,endC:c,value,moved:false,isTouch};
     cell.setPointerCapture?.(e.pointerId);
@@ -1457,6 +1461,7 @@ document.addEventListener("keydown",e=>{
 
 function bindMobileTools(){
   $("#mobileUndoBtn")?.addEventListener("click",undo);
+  $("#mobileHintBtn")?.addEventListener("click",hint);
 
   document.querySelectorAll(".mobileTool").forEach(btn=>btn.addEventListener("click",()=>{
     touchMode=btn.dataset.mode;
