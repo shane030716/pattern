@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Pattern</title>
+<meta name="description" content="Pattern puzzle game">
+<style>
+:root{
+  --cell: 38px;
+  --thin:#9aa0a6;
+  --thick:#202124;
+  --unknown:#bdbdbd;
+  --hover:#e5e7eb;
+  --good:#138a36;
+  --bad:#d93025;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:24px 14px 44px;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  color:#1f2937; background:#f3f4f6;
+  -webkit-user-select:none; user-select:none; touch-action:manipulation;
+}
+.app{width:min(1400px,100%);margin:auto}
+.header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+.titleWrap h1{margin:0;font-size:30px;letter-spacing:-.5px}
+.subtitle{margin:4px 0 0;color:#6b7280;font-size:14px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:7px 11px;min-width:72px;text-align:center;box-shadow:0 1px 2px #00000008}
+.statLabel{display:block;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.statValue{font-weight:700;font-size:15px}
+.panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;box-shadow:0 1px 3px #0000000d;margin-bottom:12px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0}
+button,select{
+  font:inherit;border:1px solid #d1d5db;border-radius:8px;background:white;padding:8px 11px;color:#374151;
+}
+button{cursor:pointer;font-weight:600}
+button:hover{background:#f9fafb}
+button.primary{background:#2563eb;color:white;border-color:#2563eb}
+button.primary:hover{background:#1d4ed8}
+.help{font-size:13px;line-height:1.5;margin:0;color:#6b7280}
+.shortcuts{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:12px;color:#6b7280}
+.shortcuts strong{color:#374151}
+.workspace{display:flex;align-items:flex-start;gap:14px;max-width:100%}.puzzleArea{min-width:0;flex:1}.solverSide{width:330px;flex:0 0 330px;position:sticky;top:12px}.solverLog{display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:10px;min-height:110px;padding:12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;font-size:13px;color:#334155;overflow-wrap:anywhere}
+.solverBadge{font-weight:800;color:white;background:#2563eb;border-radius:999px;padding:3px 8px;white-space:nowrap}.solverWhere{font-weight:800}.solverArrow{font-size:18px;font-weight:900;color:#2563eb}.solverCells{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.solverBlack{color:#111827;font-weight:800}.solverWhite{color:#64748b;font-weight:800}.solverExplain{color:#334155;line-height:1.35}.solverCells{line-height:1.35}
+kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:5px;padding:2px 6px;color:#374151}
+.scroll{overflow:auto;padding:4px 4px 16px;max-width:100%;-webkit-overflow-scrolling:touch}
+.puzzle{
+  display:grid;
+  grid-template-columns:max-content max-content max-content;
+  grid-template-rows:max-content max-content max-content;
+  width:max-content;
+  background:white;
+  padding:14px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  box-shadow:0 4px 14px #00000010;
+}
+.topHints{grid-column:2;grid-row:1;display:grid}
+.leftHints{grid-column:1;grid-row:2;display:grid}
+.board{grid-column:2;grid-row:2;display:grid}
+.rightSums{grid-column:3;grid-row:2;display:grid}
+.bottomSums{grid-column:2;grid-row:3;display:grid}
+.hintTopCell,.hintLeftCell,.sumCell{
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:var(--clueFont,14px);
+}
+.hintTopCell{width:var(--cell);min-height:20px;align-items:flex-end;padding-bottom:3px}
+.hintLeftCell{height:var(--cell);min-width:24px;justify-content:flex-end;padding-right:5px}
+.sumCell{height:var(--cell);min-width:34px;color:#555}
+.bottomSums .sumCell{width:var(--cell);height:42px;flex-direction:column;line-height:1.15}
+.sumPart{display:inline}
+.sumFull{background:#fde047;color:#111;border-radius:4px;padding:1px 3px}
+.sumDone{background:#bbf7d0;color:#166534;border-radius:4px;padding:1px 3px}
+.sumCell.actionable{cursor:pointer;user-select:none}
+.sumBlackDone{background:#fed7aa;color:#9a3412;border-radius:4px;padding:1px 3px}
+.cell.question{position:relative}
+.cell.question::after{content:"?";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:calc(var(--cell) * .55);color:#6b7280;pointer-events:none}.cell.black.question::after{color:#fff}.cell.white.question::after{color:#6b7280}
+.cell{
+  width:var(--cell);height:var(--cell);background:var(--unknown);
+  border-right:1px solid var(--thin);border-bottom:1px solid var(--thin);
+  cursor:pointer;
+}
+.cell.top{border-top:2px solid var(--thick)}
+.cell.left{border-left:2px solid var(--thick)}
+.cell.right{border-right:2px solid var(--thick)}
+.cell.bottom{border-bottom:2px solid var(--thick)}
+.cell.black{background:#111}
+.cell.white{background:#fff}
+.cell.unknown{background:var(--unknown)}
+.cell.flash{animation:flash .16s linear 4}
+@keyframes flash{50%{opacity:.15}}
+.win-pop{animation:winPop .65s cubic-bezier(.2,.9,.25,1.25)}
+@keyframes winPop{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
+.confetti{position:fixed;top:-24px;width:10px;height:18px;border-radius:2px;z-index:100;pointer-events:none;animation:confettiFall var(--dur) cubic-bezier(.15,.65,.35,1) forwards}
+@keyframes confettiFall{
+  0%{transform:translate3d(0,-20px,0) rotate(0deg);opacity:1}
+  100%{transform:translate3d(var(--drift),105vh,0) rotate(var(--spin));opacity:.9}
+}
+.win-banner{position:fixed;left:50%;top:43%;transform:translate(-50%,-50%) scale(.5);z-index:101;
+ background:#fff;border:2px solid #d8dee6;border-radius:18px;padding:18px 30px;text-align:center;
+ box-shadow:0 18px 60px #0004;pointer-events:none;opacity:0;animation:bannerIn .35s ease forwards}
+.win-banner b{display:block;font-size:32px}.win-banner span{color:#667085;font-weight:650}
+@keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+
+.status{margin-top:10px;font-size:14px;min-height:20px}
+.good{color:var(--good)!important}.bad{color:var(--bad)!important}
+@media(max-width:900px){.workspace{display:block}.solverSide{width:auto;position:static;margin-bottom:12px}.solverLog{min-height:42px}}
+@media(max-width:650px){
+  :root{--cell:31px}
+  body{padding:12px 8px 28px}
+  .header{display:block}
+  .titleWrap h1{font-size:25px}
+  .stats{justify-content:flex-start;margin-top:10px}
+  .stat{min-width:64px;padding:6px 9px}
+  .panel{padding:10px;border-radius:12px}
+  button,select{padding:8px 9px}
+  .puzzle{padding:9px}
+}
+
+.manualOverlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;z-index:10000;padding:18px}
+.manualOverlay.open{display:flex}
+.manualCard{background:#fff;border-radius:16px;padding:20px;width:min(720px,96vw);max-height:90vh;overflow:auto;box-shadow:0 18px 60px rgba(0,0,0,.22)}
+.manualCard h2{margin:0 0 8px}
+.manualCard p{margin:0 0 14px;color:#5f6670}
+.manualGrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.manualList{display:grid;gap:6px}
+.manualLine{display:grid;grid-template-columns:42px 1fr;align-items:center;gap:7px}
+.manualLine input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #c9ced6;border-radius:7px;font:inherit}
+.manualActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+@media(max-width:620px){.manualGrid{grid-template-columns:1fr}}
+
+.cell.logic8Reveal::after{content:"*";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:calc(var(--cell)*.72);line-height:1;color:#e11d48;text-shadow:0 0 2px #fff,0 0 2px #fff;pointer-events:none}
+.cell{position:relative}
+  .win-banner .win-sep{margin-left:24px;}
+
+/* Mobile touch controls */
+.mobileTools{display:none;position:sticky;top:0;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:7px;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 8px #0001}
+.mobileTools .mobileLabel{font-size:12px;font-weight:700;color:#64748b;margin-right:2px}
+.mobileTool{padding:8px 10px;min-width:48px}
+.mobileTool.active{background:#2563eb;color:#fff;border-color:#2563eb}
+.mobileTool[data-mode="white"].active{background:#64748b;border-color:#64748b}
+.mobileTool[data-mode="question"].active{background:#7c3aed;border-color:#7c3aed}
+.mobileTool[data-mode="erase"].active{background:#dc2626;border-color:#dc2626}
+.mobileTool[data-mode="pan"].active{background:#059669;border-color:#059669}
+@media (pointer:coarse), (max-width:650px){
+  .mobileTools{display:flex}
+  .help .desktopHelp{display:none}
+  .cell{touch-action:none}
+  .board.panMode .cell{touch-action:pan-x pan-y}
+  .scroll{overscroll-behavior:contain}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="titleWrap">
+      <h1>Pattern</h1>
+      <p class="subtitle">Fill the grid to reveal the hidden pattern.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="statLabel">Size</span><span class="statValue" id="sizeStat">10×10</span></div>
+      <div class="stat"><span class="statLabel">Filled</span><span class="statValue" id="filledStat">0</span></div>
+      <div class="stat"><span class="statLabel">Time</span><span class="statValue" id="timeStat">00:00</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <label>Size
+        <select id="size">
+          <option>5</option><option selected>10</option><option>15</option><option>20</option><option>25</option><option>30</option>
+        </select>
+      </label>
+      <label>Black Density
+        <select id="density">
+          <option value="auto" selected>Auto</option>
+          <option value="30">30%</option>
+          <option value="40">40%</option>
+          <option value="50">50%</option>
+          <option value="60">60%</option>
+          <option value="70">70%</option>
+          <option value="80">80%</option>
+          <option value="90">90%</option>
+        </select>
+      </label>
+      <button class="primary" id="newBtn">New Puzzle</button>
+      <button id="manualBtn">Enter Clues</button>
+      <button id="importBtn">Import Puzzle</button>
+      <button id="undoBtn">Undo</button>
+      <button id="hintBtn">Hint</button>
+      <button id="solveBtn">Solve</button>
+      <button id="checkBtn">Check</button>
+      <button id="revealBtn">Show Solution</button>
+    </div>
+  </div>
+
+  <div class="panel shortcuts">
+    <strong>Keyboard</strong>
+    <span><kbd>H</kbd> Hint</span>
+    <span><kbd>S</kbd> Solve</span>
+    <span><kbd>1–8</kbd> Apply Logic</span>
+    <span><kbd>Z</kbd> Undo</span>
+    <span><kbd>V</kbd> Solution</span>
+    <span><kbd>P</kbd> New Puzzle</span>
+  </div>
+
+  <div class="panel">
+    <p class="help">
+      <span class="desktopHelp">Left click toggles black; right click toggles white; Shift + click toggles a question mark on a black or white cell.</span> On a phone/tablet, choose Black, White, ?, Clear, or Move above the puzzle.
+      Drag horizontally or vertically to fill several squares. Use <b>Enter Clues</b> to start from your own top and left clues, or <b>Import Puzzle</b> to paste Pattern JSON text.
+    </p>
+  </div>
+
+  <div class="mobileTools" id="mobileTools">
+    <span class="mobileLabel">Touch:</span>
+    <button type="button" class="mobileTool active" data-mode="black">■ Black</button>
+    <button type="button" class="mobileTool" data-mode="white">□ White</button>
+    <button type="button" class="mobileTool" data-mode="question">? Mark</button>
+    <button type="button" class="mobileTool" data-mode="erase">× Clear</button>
+    <button type="button" class="mobileTool" data-mode="pan">↔ Move</button>
+  </div>
+
+  <div class="workspace">
+    <div class="puzzleArea">
+      <div class="scroll"><div id="puzzle"></div></div>
+      <div class="status" id="status"></div>
+    </div>
+    <aside class="solverSide">
+      <div class="solverLog" id="solverLog"><span class="solverBadge">Solver</span><span>—</span></div>
+    </aside>
+  </div>
+</div>
+
+<div class="manualOverlay" id="manualOverlay">
+  <div class="manualCard">
+    <h2>Enter Puzzle Clues</h2>
+    <p>Enter clue groups separated by spaces or commas, for example <b>3 1 2</b>. Use <b>0</b> or leave blank for an empty line.</p>
+    <div class="manualGrid">
+      <div><strong>Rows — top to bottom</strong><div class="manualList" id="manualRows"></div></div>
+      <div><strong>Columns — left to right</strong><div class="manualList" id="manualCols"></div></div>
+    </div>
+    <div class="manualActions">
+      <button id="manualCancel">Cancel</button>
+      <button class="primary" id="manualStart">Start Game</button>
+    </div>
+  </div>
+</div>
+
+<div class="manualOverlay" id="importOverlay">
+  <div class="manualCard">
+    <h2>Import Puzzle</h2>
+    <p>Paste the Pattern JSON text below.</p>
+    <textarea id="importText" spellcheck="false" style="width:100%;min-height:320px;box-sizing:border-box;border:1px solid #c9ced6;border-radius:10px;padding:12px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical" placeholder='{"format":"pattern-puzzle","version":1,"size":15,"rows":[...],"columns":[...]}'></textarea>
+    <div class="manualActions">
+      <button id="importCancel">Cancel</button>
+      <button class="primary" id="importStart">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+let size=10, divider=5, probability=60;
+let answer=[], current=[], rowHints=[], colHints=[], rowSums=[], colSums=[], history=[];
+let importedWithoutAnswer=false;
+let revealed=false, drag=null, suppressClick=false;
+let touchMode="black";
+let questionMarks=new Set();
+let logic8Reveals=new Set();
+let logic7WasUsed=false;
+let startTime=Date.now(), timerInterval=null, elapsedSeconds=0;
+
+const $ = s => document.querySelector(s);
+const idx=(r,c)=>r*size+c;
+
+function updateAutoDensityLabel(){
+  const sel=$("#density");
+  if(!sel)return;
+  const opt=sel.querySelector('option[value="auto"]');
+  if(opt) opt.textContent=`Auto (${densityFor(Number($("#size").value))}%)`;
+}
+function densityFor(n){
+  return n===5?50:n===10?60:n===15?70:n===20?80:90;
+}
+function runHints(values){
+  const out=[]; let run=0;
+  for(let i=0;i<values.length;i++){
+    if(values[i]===1) run++;
+    if(run && (values[i]===0 || i===values.length-1)){ out.push(run); run=0; }
+  }
+  return out;
+}
+function hintSum(h){ return h.length ? h.reduce((a,b)=>a+b,0)+h.length-1 : 0; }
+
+function formatTime(total){
+  const m=Math.floor(total/60), sec=total%60;
+  return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+}
+function startTimer(){
+  clearInterval(timerInterval);
+  startTime=Date.now();
+  elapsedSeconds=0;
+  $("#timeStat").textContent="00:00";
+  timerInterval=setInterval(()=>{
+    elapsedSeconds=Math.floor((Date.now()-startTime)/1000);
+    $("#timeStat").textContent=formatTime(elapsedSeconds);
+  },1000);
+}
+function stopTimer(){
+  elapsedSeconds=Math.floor((Date.now()-startTime)/1000);
+  clearInterval(timerInterval);
+  timerInterval=null;
+  $("#timeStat").textContent=formatTime(elapsedSeconds);
+}
+function setResponsiveCellSize(){
+  const scroll=document.querySelector(".scroll");
+  const available=scroll ? scroll.clientWidth : Math.max(320,window.innerWidth-28);
+
+  // Measure the non-board horizontal space using conservative allowances.
+  // Large boards have longer row clues and two-digit X(Y) values.
+  const leftClues=size>=20 ? 150 : size>=15 ? 125 : 100;
+  const rightClues=size>=20 ? 72 : 62;
+  const puzzlePadding=30;
+  const usable=Math.max(250,available-leftClues-rightClues-puzzlePadding);
+
+  // No minimum cell size: fitting the complete puzzle takes priority.
+  const maxCell=38;
+  const coarse=window.matchMedia?.("(pointer: coarse)")?.matches;
+  // On touch screens, keep cells large enough to tap. Large puzzles can be panned with Move mode.
+  const minCell=coarse ? 24 : 10;
+  const cell=Math.max(minCell,Math.min(maxCell,Math.floor(usable/size)));
+  document.documentElement.style.setProperty("--cell",cell+"px");
+
+  // Scale clue text with the cells on large boards.
+  document.documentElement.style.setProperty("--clueFont",
+    (cell<=18 ? 10 : cell<=23 ? 11 : cell<=29 ? 12 : 14)+"px");
+}
+
+
+function parseManualClue(text){
+  const t=text.trim();
+  if(!t || t==="0")return [];
+  const nums=t.split(/[\s,]+/).filter(Boolean).map(Number);
+  if(!nums.length || nums.some(n=>!Number.isInteger(n)||n<1))return null;
+  return nums;
+}
+function clueFits(h){
+  return hintSum(h)<=size;
+}
+function openManualEntry(){
+  size=Number($("#size").value);
+  const rows=$("#manualRows"), cols=$("#manualCols");
+  rows.innerHTML=""; cols.innerHTML="";
+  function add(container,label,n){
+    for(let i=0;i<n;i++){
+      const line=document.createElement("label"); line.className="manualLine";
+      line.innerHTML=`<span>${label}${i+1}</span><input inputmode="numeric" autocomplete="off" placeholder="e.g. 3 1 2">`;
+      container.appendChild(line);
+    }
+  }
+  add(rows,"R",size); add(cols,"C",size);
+  $("#manualOverlay").classList.add("open");
+  rows.querySelector("input")?.focus();
+}
+function startManualGame(){
+  clearWinBanner();
+  size=Number($("#size").value);
+  const rowInputs=[...$("#manualRows").querySelectorAll("input")];
+  const colInputs=[...$("#manualCols").querySelectorAll("input")];
+  const rh=rowInputs.map(x=>parseManualClue(x.value));
+  const ch=colInputs.map(x=>parseManualClue(x.value));
+  if(rh.some(h=>h===null)||ch.some(h=>h===null)){
+    alert("Use positive whole numbers separated by spaces or commas."); return;
+  }
+  const badR=rh.findIndex(h=>!clueFits(h)), badC=ch.findIndex(h=>!clueFits(h));
+  if(badR>=0){alert(`Row ${badR+1} does not fit in ${size} cells.`);rowInputs[badR].focus();return}
+  if(badC>=0){alert(`Column ${badC+1} does not fit in ${size} cells.`);colInputs[badC].focus();return}
+
+  // Row and column clues must describe the same total number of black cells.
+  const rowTotal=rh.flat().reduce((a,b)=>a+b,0);
+  const colTotal=ch.flat().reduce((a,b)=>a+b,0);
+  if(rowTotal!==colTotal){
+    alert(`Clues do not match: rows contain ${rowTotal} black cells, columns contain ${colTotal}.`); return;
+  }
+
+  rowHints=rh; colHints=ch;
+  rowSums=rowHints.map(h=>hintSum(h)); colSums=colHints.map(h=>hintSum(h));
+  current=Array(size*size).fill(-1); history=[]; revealed=false; questionMarks.clear(); logic8Reveals.clear(); logic7WasUsed=false;
+
+  // Manual mode still constructs one solution so Show Solution / Logic 8 remain available.
+  importedWithoutAnswer=false;
+  answer=solveManualClues(rowHints,colHints);
+  if(!answer){
+    alert("These row and column clues do not make a valid puzzle."); return;
+  }
+
+  divider=5;
+  setResponsiveCellSize(); render();
+  $("#manualOverlay").classList.remove("open");
+  $("#status").textContent="";
+  $("#revealBtn").textContent="Show Solution";
+  updateStats(); startTimer();
+}
+function solveManualClues(rHints,cHints){
+  // Fast clue solver used only to reconstruct a hidden answer for imported/manual
+  // puzzles. Precompute all row/column patterns once, then filter the column
+  // candidates incrementally as each row is chosen. This avoids regenerating
+  // thousands of column patterns at every backtracking node (especially costly
+  // for 20x20 and 25x25 imports).
+  const unknown=Array(size).fill(-1);
+  const rowPatterns=rHints.map(h=>possibleLinePatterns(h,unknown));
+  const colPatterns=cHints.map(h=>possibleLinePatterns(h,unknown));
+  if(rowPatterns.some(a=>!a.length) || colPatterns.some(a=>!a.length))return null;
+
+  const grid=Array(size);
+  function rec(r,colCandidates){
+    if(r===size)return grid.flat();
+    for(const pat of rowPatterns[r]){
+      const nextCols=Array(size);
+      let ok=true;
+      for(let c=0;c<size;c++){
+        const filtered=colCandidates[c].filter(cp=>cp[r]===pat[c]);
+        if(!filtered.length){ok=false;break;}
+        nextCols[c]=filtered;
+      }
+      if(!ok)continue;
+      grid[r]=pat;
+      const ans=rec(r+1,nextCols);
+      if(ans)return ans;
+    }
+    return null;
+  }
+  return rec(0,colPatterns);
+}
+
+function normalizeImportedClues(value,label,n){
+  if(!Array.isArray(value) || value.length!==n) throw new Error(`${label} must contain exactly ${n} lines.`);
+  return value.map((line,i)=>{
+    if(!Array.isArray(line)) throw new Error(`${label} ${i+1} must be an array of clue numbers.`);
+    const h=line.map(Number);
+    if(h.some(x=>!Number.isInteger(x)||x<1)) throw new Error(`${label} ${i+1} contains an invalid clue.`);
+    if(hintSum(h)>n) throw new Error(`${label} ${i+1} does not fit in ${n} cells.`);
+    return h;
+  });
+}
+function loadImportedPuzzle(data){
+  clearWinBanner();
+  if(!data || typeof data!=="object") throw new Error("The file does not contain a puzzle object.");
+  if(data.format!=="pattern-puzzle") throw new Error('Unsupported file format. Expected format: "pattern-puzzle".');
+  if(data.version!==1) throw new Error(`Unsupported Pattern file version: ${data.version}.`);
+  const n=Number(data.size);
+  if(!Number.isInteger(n) || n<1 || n>50) throw new Error("Puzzle size must be a whole number from 1 to 50.");
+  const rh=normalizeImportedClues(data.rows,"Row",n);
+  const ch=normalizeImportedClues(data.columns,"Column",n);
+  const rowTotal=rh.flat().reduce((a,b)=>a+b,0), colTotal=ch.flat().reduce((a,b)=>a+b,0);
+  if(rowTotal!==colTotal) throw new Error(`Clues do not match: rows contain ${rowTotal} black cells, columns contain ${colTotal}.`);
+
+  size=n;
+  // Keep the size control synchronized. Add the imported size if it is not one of the presets.
+  let opt=[...$("#size").options].find(o=>Number(o.value||o.textContent)===n);
+  if(!opt){ opt=document.createElement("option"); opt.value=String(n); opt.textContent=String(n); $("#size").appendChild(opt); }
+  $("#size").value=String(n);
+  updateAutoDensityLabel();
+  rowHints=rh; colHints=ch;
+  rowSums=rowHints.map(h=>hintSum(h)); colSums=colHints.map(h=>hintSum(h));
+  current=Array(size*size).fill(-1); history=[]; revealed=false; questionMarks.clear(); logic8Reveals.clear(); logic7WasUsed=false;
+  // Imported puzzles are clue-only. Do not reconstruct a hidden answer.
+  // Completion is validated directly against all row/column clues.
+  answer=[];
+  importedWithoutAnswer=true;
+  divider=5;
+  setResponsiveCellSize(); render();
+  $("#status").textContent=data.name ? `Imported: ${data.name}` : "Puzzle imported.";
+  $("#revealBtn").textContent="Show Solution";
+  updateStats(); startTimer();
+}
+function importPuzzleText(){
+  const text=$("#importText").value.trim();
+  if(!text) throw new Error("Paste the puzzle JSON first.");
+  let data;
+  try{ data=JSON.parse(text); }
+  catch{ throw new Error("The import text is not valid JSON."); }
+  loadImportedPuzzle(data);
+  $("#importOverlay").classList.remove("open");
+}
+function clearWinBanner(){ document.querySelectorAll(".win-banner").forEach(el=>el.remove()); }
+
+function generate(){
+  clearWinBanner();
+  size=Number($("#size").value);
+  updateAutoDensityLabel();
+  divider=5;
+  const densitySetting=$("#density").value;
+  probability=densitySetting==="auto" ? densityFor(size) : Number(densitySetting);
+
+  answer=[]; importedWithoutAnswer=false; current=Array(size*size).fill(-1); history=[]; revealed=false; questionMarks.clear(); logic8Reveals.clear(); logic7WasUsed=false;
+  for(let i=0;i<size*size;i++) answer.push(Math.random()*100 < probability ? 1 : 0);
+
+  rowHints=[]; colHints=[]; rowSums=[]; colSums=[];
+  for(let r=0;r<size;r++){
+    const vals=[]; for(let c=0;c<size;c++) vals.push(answer[idx(r,c)]);
+    const h=runHints(vals); rowHints.push(h); rowSums.push(hintSum(h));
+  }
+  for(let c=0;c<size;c++){
+    const vals=[]; for(let r=0;r<size;r++) vals.push(answer[idx(r,c)]);
+    const h=runHints(vals); colHints.push(h); colSums.push(hintSum(h));
+  }
+
+  setResponsiveCellSize();
+  render();
+  $("#status").textContent="";
+  $("#revealBtn").textContent="Show Solution";
+  updateStats();
+  startTimer();
+}
+
+function render(){
+  const maxRow=Math.max(1,...rowHints.map(h=>h.length));
+  const maxCol=Math.max(1,...colHints.map(h=>h.length));
+  const p=$("#puzzle"); p.innerHTML="";
+  const wrap=document.createElement("div"); wrap.className="puzzle";
+
+  const top=document.createElement("div"); top.className="topHints";
+  top.style.gridTemplateColumns=`repeat(${size},var(--cell))`;
+  top.style.gridTemplateRows=`repeat(${maxCol},20px)`;
+  for(let rr=0;rr<maxCol;rr++) for(let c=0;c<size;c++){
+    const d=document.createElement("div"); d.className=`hintTopCell colhint-${c}`;
+    const h=colHints[c], k=rr-(maxCol-h.length);
+    d.textContent=k>=0?h[k]:""; d.dataset.hintIndex=k;
+    top.appendChild(d);
+  }
+
+  const left=document.createElement("div"); left.className="leftHints";
+  left.style.gridTemplateColumns=`repeat(${maxRow},24px)`;
+  left.style.gridTemplateRows=`repeat(${size},var(--cell))`;
+  for(let r=0;r<size;r++) for(let cc=0;cc<maxRow;cc++){
+    const d=document.createElement("div"); d.className=`hintLeftCell rowhint-${r}`;
+    const h=rowHints[r], k=cc-(maxRow-h.length);
+    d.textContent=k>=0?h[k]:""; d.dataset.hintIndex=k;
+    left.appendChild(d);
+  }
+
+  const board=document.createElement("div"); board.className="board"; board.id="board";
+  board.style.gridTemplateColumns=`repeat(${size},var(--cell))`;
+  board.style.gridTemplateRows=`repeat(${size},var(--cell))`;
+  for(let r=0;r<size;r++) for(let c=0;c<size;c++){
+    const d=document.createElement("div");
+    d.className="cell unknown";
+    if(r%divider===0)d.classList.add("top");
+    if(c%divider===0)d.classList.add("left");
+    if(r%divider===divider-1 || r===size-1)d.classList.add("bottom");
+    if(c%divider===divider-1 || c===size-1)d.classList.add("right");
+    d.dataset.r=r; d.dataset.c=c;
+    board.appendChild(d);
+  }
+
+  const right=document.createElement("div"); right.className="rightSums";
+  right.style.gridTemplateRows=`repeat(${size},var(--cell))`;
+  for(let r=0;r<size;r++){const d=document.createElement("div");d.className="sumCell";d.id=`rs-${r}`;right.appendChild(d)}
+
+  const bottom=document.createElement("div"); bottom.className="bottomSums";
+  bottom.style.gridTemplateColumns=`repeat(${size},var(--cell))`;
+  for(let c=0;c<size;c++){const d=document.createElement("div");d.className="sumCell";d.id=`cs-${c}`;bottom.appendChild(d)}
+
+  wrap.append(top,left,board,right,bottom); p.appendChild(wrap);
+  bindBoard(); bindSumClues(); paintAll(); check(false);
+}
+
+function paintCell(r,c){
+  const el=document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+  if(!el)return;
+  el.classList.remove("black","white","unknown","question","logic8Reveal");
+  const v=revealed?answer[idx(r,c)]:current[idx(r,c)];
+  el.classList.add(v===1?"black":v===0?"white":"unknown");
+  if(!revealed && v!==-1 && questionMarks.has(idx(r,c))) el.classList.add("question");
+  if(!revealed && logic8Reveals.has(idx(r,c))) el.classList.add("logic8Reveal");
+}
+function paintAll(){for(let r=0;r<size;r++)for(let c=0;c<size;c++)paintCell(r,c)}
+function updateStats(){
+  $("#sizeStat").textContent=`${size}×${size}`;
+  $("#filledStat").textContent=current.filter(v=>v!==-1).length;
+}
+
+function applyCells(cells,value,record=true){
+  const changes=[];
+  for(const [r,c] of cells){
+    const i=idx(r,c);
+    if(current[i]!==value || questionMarks.has(i)){changes.push([i,current[i],questionMarks.has(i)]);questionMarks.delete(i);current[i]=value;paintCell(r,c)}
+  }
+  if(record && changes.length)history.push(changes);
+  if(changes.length){updateStats();check(true);}
+}
+
+function possibleLinePatterns(clues, vals){
+  const n=vals.length, out=[];
+  function rec(k,pos,row){
+    if(k===clues.length){
+      const candidate=row.slice();
+      while(candidate.length<n) candidate.push(0);
+      if(candidate.length!==n)return;
+      for(let i=0;i<n;i++) if(vals[i]!==-1 && vals[i]!==candidate[i]) return;
+      out.push(candidate); return;
+    }
+    const len=clues[k];
+    const remaining=clues.slice(k+1).reduce((a,b)=>a+b,0)+(clues.length-k-1);
+    for(let start=pos;start+len+remaining<=n;start++){
+      const next=row.slice();
+      while(next.length<start) next.push(0);
+      for(let j=0;j<len;j++) next.push(1);
+      if(k<clues.length-1) next.push(0);
+      let ok=true;
+      for(let i=0;i<next.length;i++) if(vals[i]!==-1 && vals[i]!==next[i]){ok=false;break}
+      if(ok) rec(k+1,next.length,next);
+    }
+  }
+  if(!clues.length){
+    const candidate=Array(n).fill(0);
+    if(candidate.every((v,i)=>vals[i]===-1||vals[i]===v)) out.push(candidate);
+  }else rec(0,0,[]);
+  return out;
+}
+function forcedLineCells(clues,vals){
+  const patterns=possibleLinePatterns(clues,vals);
+  if(!patterns.length)return [];
+  const forced=[];
+  for(let i=0;i<vals.length;i++){
+    if(vals[i]!==-1)continue;
+    const v=patterns[0][i];
+    if(patterns.every(p=>p[i]===v)) forced.push([i,v]);
+  }
+  return forced;
+}
+
+function finishLine(type,n){
+  if(revealed)return;
+  const el=$(type==="row"?`#rs-${n}`:`#cs-${n}`);
+  if(!el?.classList.contains("actionable"))return;
+  const isOrange=el.classList.contains("orangeAction");
+  const isYellow=el.classList.contains("yellowAction");
+  const changes=[];
+  if(isOrange){
+    if(type==="row"){
+      for(let c=0;c<size;c++){const i=idx(n,c);if(current[i]===-1){changes.push([i,current[i],questionMarks.has(i)]);questionMarks.delete(i);current[i]=0;paintCell(n,c)}}
+    }else{
+      for(let r=0;r<size;r++){const i=idx(r,n);if(current[i]===-1){changes.push([i,current[i],questionMarks.has(i)]);questionMarks.delete(i);current[i]=0;paintCell(r,n)}}
+    }
+  }else if(isYellow){
+    const vals=[], clues=type==="row"?rowHints[n]:colHints[n];
+    if(type==="row") for(let c=0;c<size;c++){
+      const i=idx(n,c); vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    else for(let r=0;r<size;r++){
+      const i=idx(r,n); vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    for(const [pos,value] of forcedLineCells(clues,vals)){
+      const r=type==="row"?n:pos, c=type==="row"?pos:n, i=idx(r,c);
+      changes.push([i,current[i],questionMarks.has(i)]); questionMarks.delete(i); current[i]=value; paintCell(r,c);
+    }
+  }
+  if(changes.length){history.push(changes);updateStats();check(true);}
+}
+
+function bindSumClues(){
+  document.querySelectorAll(".rightSums .sumCell").forEach((el,r)=>{
+    el.addEventListener("dblclick",e=>{e.preventDefault();finishLine("row",r)});
+  });
+  document.querySelectorAll(".bottomSums .sumCell").forEach((el,c)=>{
+    el.addEventListener("dblclick",e=>{e.preventDefault();finishLine("col",c)});
+  });
+}
+
+function bindBoard(){
+  const board=$("#board");
+  board.addEventListener("contextmenu",e=>e.preventDefault());
+
+  board.addEventListener("pointerdown",e=>{
+    const cell=e.target.closest(".cell"); if(!cell||revealed)return;
+    const isTouch=e.pointerType==="touch" || e.pointerType==="pen";
+
+    // Move mode gives the browser control of touch panning/scrolling.
+    if(isTouch && touchMode==="pan"){ drag=null; return; }
+    e.preventDefault();
+
+    const r=+cell.dataset.r,c=+cell.dataset.c,i=idx(r,c);
+
+    if(!isTouch && e.shiftKey){
+      if(current[i]!==-1){
+        const oldValue=current[i], hadQuestion=questionMarks.has(i);
+        history.push([[i,oldValue,hadQuestion]]);
+        if(hadQuestion) questionMarks.delete(i); else questionMarks.add(i);
+        paintCell(r,c);updateStats();check(false);
+      }
+      drag=null; return;
+    }
+
+    if(isTouch && touchMode==="question"){
+      drag={r,c,endR:r,endC:c,value:"question",moved:false,questionTarget:!questionMarks.has(i)};
+      cell.setPointerCapture?.(e.pointerId); return;
+    }
+
+    let wanted;
+    if(isTouch){
+      if(touchMode==="erase") wanted=-1;
+      else wanted=touchMode==="white"?0:1;
+    }else wanted=e.button===2?0:1;
+
+    // Mouse retains toggle behavior. Touch mode paints the selected state;
+    // tapping the same single cell again toggles it back to empty.
+    let value=wanted;
+    if(isTouch && wanted!==-1 && current[i]===wanted) value=-1;
+    else if(!isTouch) value=current[i]===wanted?-1:wanted;
+    drag={r,c,endR:r,endC:c,value,moved:false,isTouch};
+    cell.setPointerCapture?.(e.pointerId);
+  });
+
+  board.addEventListener("pointermove",e=>{
+    if(!drag)return;
+    const el=document.elementFromPoint(e.clientX,e.clientY)?.closest?.(".cell");
+    if(!el)return;
+    const r=+el.dataset.r,c=+el.dataset.c;
+    if(r===drag.r || c===drag.c){
+      drag.endR=r;drag.endC=c;
+      if(r!==drag.r||c!==drag.c)drag.moved=true;
+    }
+  });
+
+  board.addEventListener("pointerup",e=>{
+    if(!drag)return;
+    const d=drag;drag=null;
+    let cells=[];
+    if(d.r===d.endR){
+      for(let c=Math.min(d.c,d.endC);c<=Math.max(d.c,d.endC);c++)cells.push([d.r,c]);
+    }else if(d.c===d.endC){
+      for(let r=Math.min(d.r,d.endR);r<=Math.max(d.r,d.endR);r++)cells.push([r,d.c]);
+    }else cells=[[d.r,d.c]];
+
+    if(d.value==="question"){
+      const changes=[];
+      for(const [r,c] of cells){
+        const i=idx(r,c); if(current[i]===-1)continue;
+        const had=questionMarks.has(i);
+        if(had===d.questionTarget)continue;
+        changes.push([i,current[i],had]);
+        if(d.questionTarget)questionMarks.add(i); else questionMarks.delete(i);
+        paintCell(r,c);
+      }
+      if(changes.length){history.push(changes);updateStats();check(false);}
+    }else{
+      // For a touch drag, paint the selected mode consistently instead of
+      // toggling each already-matching cell off.
+      let value=d.value;
+      if(d.isTouch && d.moved){
+        if(touchMode==="erase")value=-1;
+        else value=touchMode==="white"?0:1;
+      }
+      applyCells(cells,value);
+    }
+    suppressClick=d.moved;
+  });
+
+  board.addEventListener("pointercancel",()=>{drag=null;});
+  board.classList.toggle("panMode",touchMode==="pan");
+}
+
+
+function completedRunsFromStart(vals){
+  const out=[];let run=0;
+  for(let i=0;i<vals.length;i++){
+    if(vals[i]===-1)break;
+    if(vals[i]===1)run++;
+    if(run && (vals[i]===0 || i===vals.length-1)){out.push(run);run=0}
+  }
+  return out;
+}
+function completedRunsFromEnd(vals){return completedRunsFromStart([...vals].reverse()).reverse()}
+
+function markLine(type,n,vals,hints,sumEl){
+  const nodes=[...document.querySelectorAll(`.${type}hint-${n}`)];
+  nodes.forEach(x=>x.classList.remove("good","bad"));
+  const f=completedRunsFromStart(vals), b=completedRunsFromEnd(vals);
+  let bad=false;
+  for(let k=0;k<f.length;k++){
+    const node=nodes.find(x=>+x.dataset.hintIndex===k);
+    if(f[k]===hints[k])node?.classList.add("good");else{node?.classList.add("bad");bad=true}
+  }
+  for(let j=0;j<b.length;j++){
+    const k=hints.length-b.length+j;
+    const node=nodes.find(x=>+x.dataset.hintIndex===k);
+    if(b[j]===hints[k])node?.classList.add("good");else{node?.classList.add("bad");bad=true}
+  }
+  // X (Y) uses its own number-specific highlighting; clue conflicts remain on clue numbers.
+}
+
+function whiteDeduction(vals){
+  let add=0;
+  // One extra space for a known white cell at either boundary.
+  if(vals[0]===0)add++;
+  if(vals[size-1]===0)add++;
+  // One extra space for every adjacent pair of known white cells.
+  for(let i=1;i<size;i++) if(vals[i-1]===0 && vals[i]===0)add++;
+  return add;
+}
+function renderSum(el,x,y,done,blackDone,isBottom=false){
+  el.classList.remove("good","bad","actionable","orangeAction","yellowAction");
+  const yellow=!done && !blackDone && (x===size || y===size);
+  if(blackDone) el.classList.add("actionable","orangeAction");
+  else if(yellow) el.classList.add("actionable","yellowAction");
+  const stateClass=done?"sumDone":(blackDone?"sumBlackDone":"");
+  const xClass=stateClass?`sumPart ${stateClass}`:(x===size?"sumPart sumFull":"sumPart");
+  const yClass=stateClass?`sumPart ${stateClass}`:(y===size?"sumPart sumFull":"sumPart");
+  if(isBottom){
+    el.innerHTML=`<span class="${xClass}">${x}</span><span>(<span class="${yClass}">${y}</span>)</span>`;
+  }else{
+    el.innerHTML=`<span class="${xClass}">${x}</span> <span>(</span><span class="${yClass}">${y}</span><span>)</span>`;
+  }
+}
+function celebrateWin(){
+  const puzzle=document.querySelector(".puzzle");
+  puzzle.classList.remove("win-pop");
+  void puzzle.offsetWidth;
+  puzzle.classList.add("win-pop");
+
+  const colors=["#1f6feb","#2eaf62","#f2c94c","#e94b5f","#9b51e0","#f2994a"];
+  for(let i=0;i<90;i++){
+    const c=document.createElement("i");
+    c.className="confetti";
+    c.style.left=(Math.random()*100)+"vw";
+    c.style.background=colors[i%colors.length];
+    c.style.setProperty("--dur",(1.8+Math.random()*1.8)+"s");
+    c.style.setProperty("--drift",(-140+Math.random()*280)+"px");
+    c.style.setProperty("--spin",(-900+Math.random()*1800)+"deg");
+    c.style.animationDelay=(Math.random()*.55)+"s";
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(),4200);
+  }
+
+  const banner=document.createElement("div");
+  banner.className="win-banner";
+  banner.innerHTML=`<b>🎉 Solved!</b><span>Time: ${formatTime(elapsedSeconds)}</span><span class="win-sep">Logic 7: ${logic7WasUsed ? "USED" : "Not used"}</span>`;
+  document.body.appendChild(banner);
+  // Keep the solved banner visible until a new puzzle/reset replaces it.
+}
+function check(showWin){
+  let win=true;
+  for(let r=0;r<size;r++){
+    const vals=[];for(let c=0;c<size;c++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+      if(!importedWithoutAnswer && (questionMarks.has(i) || current[i]!==answer[i]))win=false;
+      if(importedWithoutAnswer && (questionMarks.has(i) || current[i]===-1))win=false;
+    }
+    const rowY=rowSums[r]+whiteDeduction(vals);
+    const rowCluesMatch=JSON.stringify(runHints(vals))===JSON.stringify(rowHints[r]);
+    const rowDone=vals.every(v=>v!==-1) && rowCluesMatch;
+    if(importedWithoutAnswer && !rowDone && vals.every(v=>v!==-1)) win=false;
+    const rowNeeded=rowHints[r].reduce((a,b)=>a+b,0);
+    const rowBlackCount=vals.filter(v=>v===1).length;
+    const rowBlacksPossible=possibleLinePatterns(rowHints[r],vals).length>0;
+    const rowBlackDone=!rowDone && vals.some(v=>v===-1) && rowBlackCount===rowNeeded && rowBlacksPossible;
+    renderSum($("#rs-"+r),rowSums[r],rowY,rowDone,rowBlackDone,false);
+    markLine("row",r,vals,rowHints[r],$("#rs-"+r));
+  }
+  for(let c=0;c<size;c++){
+    const vals=[];for(let r=0;r<size;r++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const colY=colSums[c]+whiteDeduction(vals);
+    const colCluesMatch=JSON.stringify(runHints(vals))===JSON.stringify(colHints[c]);
+    const colDone=vals.every(v=>v!==-1) && colCluesMatch;
+    if(importedWithoutAnswer && !colDone && vals.every(v=>v!==-1)) win=false;
+    const colNeeded=colHints[c].reduce((a,b)=>a+b,0);
+    const colBlackCount=vals.filter(v=>v===1).length;
+    const colBlacksPossible=possibleLinePatterns(colHints[c],vals).length>0;
+    const colBlackDone=!colDone && vals.some(v=>v===-1) && colBlackCount===colNeeded && colBlacksPossible;
+    renderSum($("#cs-"+c),colSums[c],colY,colDone,colBlackDone,true);
+    markLine("col",c,vals,colHints[c],$("#cs-"+c));
+  }
+  if(win && showWin){
+    stopTimer();
+    $("#status").textContent=logic7WasUsed ? "Solved! Logic 7 was used." : "Solved! Logic 7 was not used.";
+    celebrateWin();
+  }
+  return win;
+}
+function undo(){
+  if(revealed||!history.length)return;
+  const changes=history.pop();
+  for(const change of changes){
+    const [i,old,hadQuestion=false]=change;
+    current[i]=old;
+    logic8Reveals.delete(i);
+    if(hadQuestion) questionMarks.add(i); else questionMarks.delete(i);
+    paintCell(Math.floor(i/size),i%size);
+  }
+  updateStats();
+  check(false);
+}
+function lineVals(type,n){
+  const vals=[];
+  if(type==="row") for(let c=0;c<size;c++){const i=idx(n,c);vals.push(questionMarks.has(i)?-1:current[i]);}
+  else for(let r=0;r<size;r++){const i=idx(r,n);vals.push(questionMarks.has(i)?-1:current[i]);}
+  return vals;
+}
+function showSolverLog(logic,type,n,dir,changes,note=""){
+  const el=$("#solverLog"); if(!el)return;
+  const arrows={ltr:"→",rtl:"←",ttb:"↓",btt:"↑",bothRow:"↔",bothCol:"↕",none:"•"};
+  const arrow=arrows[dir] || (type==="row"?"→":"↓");
+  const where=`${type==="row"?"Row":"Column"} ${n+1}`;
+  const parts=(changes||[]).map(([r,c,v])=>`R${r+1}C${c+1} <span class="${v===1?"solverBlack":"solverWhite"}">${v===1?"■ BLACK":"□ WHITE"}</span>`).join(" · ");
+  const explanation=note?`<span class="solverExplain">${note}</span>`:"";
+  const changed=parts?`<span class="solverCells">${parts}</span>`:"";
+  el.innerHTML=`<span class="solverBadge">Logic ${logic}</span><span class="solverWhere">${where}</span><span class="solverArrow">${arrow}</span>${explanation}${changed}`;
+}
+function applyLogged(logic,type,n,dir,cells,value,note=""){
+  const actual=[];
+  for(const [r,c] of cells){const i=idx(r,c);if(current[i]!==value || questionMarks.has(i))actual.push([r,c,value]);}
+  if(!actual.length)return false;
+  applyCells(actual.map(([r,c])=>[r,c]),value);
+  showSolverLog(logic,type,n,dir,actual,note);
+  return true;
+}
+
+function logic2Once(){
+  // Logic 2:
+  // From either end of a line, if a clue's exact black run is already
+  // completed, the unknown cell immediately beyond that run must be white.
+  // Works for rows/columns and from both directions.
+  function scan(vals,hints){
+    // Returns the first cell position that can be made white, or -1.
+    function fromStart(v,h){
+      let pos=0;
+      for(let k=0;k<h.length;k++){
+        // Skip confirmed white cells before this clue.
+        while(pos<size && v[pos]===0)pos++;
+        if(pos>=size || v[pos]===-1)return -1;
+
+        // We are at a black run. Count it.
+        const start=pos;
+        while(pos<size && v[pos]===1)pos++;
+        const len=pos-start;
+
+        // Only advance to the next clue if this run exactly matches it.
+        if(len!==h[k])return -1;
+
+        // Exact completed run: its immediate outside cell must be white.
+        if(pos<size && v[pos]===-1)return pos;
+        if(pos<size && v[pos]===0){pos++;continue}
+        return -1;
+      }
+      return -1;
+    }
+
+    let p=fromStart(vals,hints);
+    if(p>=0)return {pos:p,dir:"forward"};
+
+    // Same deduction from the opposite end.
+    const rev=[...vals].reverse();
+    const rh=[...hints].reverse();
+    p=fromStart(rev,rh);
+    return p>=0 ? {pos:size-1-p,dir:"reverse"} : null;
+  }
+
+  // Rows first.
+  for(let r=0;r<size;r++){
+    const vals=[];
+    for(let c=0;c<size;c++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,rowHints[r]);
+    if(hit){
+      applyLogged(2,"row",r,hit.dir==="forward"?"ltr":"rtl",[[r,hit.pos]],0,"The completed clue needs a white separator immediately after it.");
+      return true;
+    }
+  }
+
+  // Then columns.
+  for(let c=0;c<size;c++){
+    const vals=[];
+    for(let r=0;r<size;r++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,colHints[c]);
+    if(hit){
+      applyLogged(2,"col",c,hit.dir==="forward"?"ttb":"btt",[[hit.pos,c]],0,"The completed clue needs a white separator immediately after it.");
+      return true;
+    }
+  }
+  return false;
+}
+
+function logic3Once(){
+  // Logic 3:
+  // From either end of a row/column, if there is EXACTLY one unknown cell
+  // before a black run whose length exactly equals the first clue from that
+  // direction, that single outside unknown must be white.
+  function scan(vals,hints){
+    function fromStart(v,h){
+      if(!h.length || v[0]!==-1)return -1;
+
+      // Exactly one unknown at the edge: the next cell must already be black.
+      if(size<2 || v[1]!==1)return -1;
+
+      let end=1;
+      while(end<size && v[end]===1)end++;
+      const runLen=end-1;
+
+      if(runLen===h[0])return 0;
+      return -1;
+    }
+
+    let p=fromStart(vals,hints);
+    if(p>=0)return {pos:p,dir:"forward"};
+
+    const rev=[...vals].reverse();
+    const rh=[...hints].reverse();
+    p=fromStart(rev,rh);
+    return p>=0 ? {pos:size-1-p,dir:"reverse"} : null;
+  }
+
+  for(let r=0;r<size;r++){
+    const vals=[];
+    for(let c=0;c<size;c++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,rowHints[r]);
+    if(hit){applyLogged(3,"row",r,hit.dir==="forward"?"ltr":"rtl",[[r,hit.pos]],0,"There is exactly one unknown outside an already complete edge run, so it must be white.");return true;}
+  }
+
+  for(let c=0;c<size;c++){
+    const vals=[];
+    for(let r=0;r<size;r++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,colHints[c]);
+    if(hit){applyLogged(3,"col",c,hit.dir==="forward"?"ttb":"btt",[[hit.pos,c]],0,"There is exactly one unknown outside an already complete edge run, so it must be white.");return true;}
+  }
+  return false;
+}
+
+function logic4Once(){
+  // Logic 4:
+  // Work inward from either end. Once a clue is anchored by a black cell at
+  // the current boundary, complete the ENTIRE required clue span in one shot.
+  // Existing black cells inside that span are allowed; a confirmed white cell
+  // makes that placement impossible.
+  function fromStart(v,h){
+    let pos=0, k=0;
+
+    while(k<h.length && pos<size){
+      while(pos<size && v[pos]===0)pos++;
+      if(pos>=size || v[pos]!==1)return null;
+
+      const clueLen=h[k];
+      if(pos+clueLen>size)return null;
+
+      // The anchored clue must occupy this whole span. If a white cell is
+      // already inside it, this boundary placement is not valid for Logic 4.
+      for(let j=0;j<clueLen;j++) if(v[pos+j]===0)return null;
+
+      const toFill=[];
+      for(let j=0;j<clueLen;j++) if(v[pos+j]===-1)toFill.push(pos+j);
+      if(toFill.length)return {positions:toFill,clueLen};
+
+      // This clue is already complete. We may move to the next clue only when
+      // its required separator is already confirmed white.
+      const after=pos+clueLen;
+      if(after<size && v[after]===0){pos=after+1;k++;continue;}
+      return null;
+    }
+    return null;
+  }
+
+  function scan(vals,hints){
+    let hit=fromStart(vals,hints);
+    if(hit)return {positions:hit.positions,dir:"forward",clueLen:hit.clueLen};
+    const rev=[...vals].reverse(), rh=[...hints].reverse();
+    hit=fromStart(rev,rh);
+    if(!hit)return null;
+    return {positions:hit.positions.map(p=>size-1-p).sort((a,b)=>a-b),dir:"reverse",clueLen:hit.clueLen};
+  }
+
+  for(let r=0;r<size;r++){
+    const vals=[];
+    for(let c=0;c<size;c++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,rowHints[r]);
+    if(hit){
+      const cells=hit.positions.map(c=>[r,c]);
+      const arrowDir=hit.dir==="forward"?"ltr":"rtl";
+      applyLogged(4,"row",r,arrowDir,cells,1,`The boundary-associated run belongs to clue ${hit.clueLen}, so complete the whole clue in one step.`);
+      return true;
+    }
+  }
+
+  for(let c=0;c<size;c++){
+    const vals=[];
+    for(let r=0;r<size;r++){
+      const i=idx(r,c);
+      vals.push(questionMarks.has(i)?-1:current[i]);
+    }
+    const hit=scan(vals,colHints[c]);
+    if(hit){
+      const cells=hit.positions.map(r=>[r,c]);
+      const arrowDir=hit.dir==="forward"?"ttb":"btt";
+      applyLogged(4,"col",c,arrowDir,cells,1,`The boundary-associated run belongs to clue ${hit.clueLen}, so complete the whole clue in one step.`);
+      return true;
+    }
+  }
+  return false;
+}
+
+function logic5Once(){
+  // Logic 5: standard overlap. Pack the clue sequence as far toward each
+  // end as possible. Cells covered by the same clue in both extreme
+  // placements are guaranteed black. Apply all overlap cells in one line.
+  function overlaps(hints){
+    if(!hints.length)return [];
+    const left=[], right=[];
+    let p=0;
+    for(const len of hints){left.push(p);p+=len+1;}
+    p=size;
+    for(let k=hints.length-1;k>=0;k--){p-=hints[k];right[k]=p;p--;}
+    const out=[];
+    for(let k=0;k<hints.length;k++){
+      const a=Math.max(left[k],right[k]), b=Math.min(left[k]+hints[k]-1,right[k]+hints[k]-1);
+      for(let x=a;x<=b;x++)out.push(x);
+    }
+    return [...new Set(out)];
+  }
+  for(let r=0;r<size;r++){
+    const cells=overlaps(rowHints[r]).filter(c=>{const i=idx(r,c);return current[i]===-1||questionMarks.has(i)}).map(c=>[r,c]);
+    if(cells.length)return applyLogged(5,"row",r,"bothRow",cells,1,"Packing the clues from both ends leaves these cells covered in every extreme placement.");
+  }
+  for(let c=0;c<size;c++){
+    const cells=overlaps(colHints[c]).filter(r=>{const i=idx(r,c);return current[i]===-1||questionMarks.has(i)}).map(r=>[r,c]);
+    if(cells.length)return applyLogged(5,"col",c,"bothCol",cells,1,"Packing the clues from both ends leaves these cells covered in every extreme placement.");
+  }
+  return false;
+}
+
+function logic6Once(){
+  // Logic 6: clue assignment / valid-placement reasoning.
+  // Generate every complete line arrangement consistent with the clues and
+  // confirmed cells. Anything identical in every arrangement is forced.
+  // This captures clue assignment, bridging, separators, remaining-space,
+  // impossible-run elimination, white/edge boundaries, and propagation.
+  function forcedFor(type,n){
+    const vals=lineVals(type,n), hints=type==="row"?rowHints[n]:colHints[n];
+    const patterns=possibleLinePatterns(hints,vals);
+    if(!patterns.length)return [];
+    const forced=[];
+    for(let pos=0;pos<size;pos++){
+      if(vals[pos]!==-1)continue;
+      const v=patterns[0][pos];
+      if(patterns.every(p=>p[pos]===v)){
+        const r=type==="row"?n:pos,c=type==="row"?pos:n;
+        forced.push([r,c,v]);
+      }
+    }
+    return forced;
+  }
+  // Rows first, then columns. Finish all currently forced cells in the chosen
+  // line before returning to the normal solver priority order.
+  for(let r=0;r<size;r++){
+    const forced=forcedFor("row",r); if(!forced.length)continue;
+    const blacks=forced.filter(x=>x[2]===1).map(x=>[x[0],x[1]]), whites=forced.filter(x=>x[2]===0).map(x=>[x[0],x[1]]);
+    const changes=[];
+    if(blacks.length){applyCells(blacks,1);changes.push(...blacks.map(([rr,cc])=>[rr,cc,1]));}
+    if(whites.length){applyCells(whites,0);changes.push(...whites.map(([rr,cc])=>[rr,cc,0]));}
+    showSolverLog(6,"row",r,"bothRow",changes,"Across every valid clue placement consistent with the known cells, these cells have the same required state."); return true;
+  }
+  for(let c=0;c<size;c++){
+    const forced=forcedFor("col",c); if(!forced.length)continue;
+    const blacks=forced.filter(x=>x[2]===1).map(x=>[x[0],x[1]]), whites=forced.filter(x=>x[2]===0).map(x=>[x[0],x[1]]);
+    const changes=[];
+    if(blacks.length){applyCells(blacks,1);changes.push(...blacks.map(([rr,cc])=>[rr,cc,1]));}
+    if(whites.length){applyCells(whites,0);changes.push(...whites.map(([rr,cc])=>[rr,cc,0]));}
+    showSolverLog(6,"col",c,"bothCol",changes,"Across every valid clue placement consistent with the known cells, these cells have the same required state."); return true;
+  }
+  return false;
+}
+
+
+function logic7Once(){
+  // Logic 7: contradiction / cross-line look-ahead.
+  // Try an unknown cell as black and as white on a virtual board. For each
+  // assumption, repeatedly apply exhaustive single-line forcing (Logic 6's
+  // core principle) across all rows and columns. If one branch becomes
+  // impossible, the opposite value is forced. If both branches remain
+  // possible, any cell that reaches the same value in both branches is also
+  // a valid common consequence.
+  function virtualSolve(seedIndex,seedValue){
+    const grid=current.map((v,i)=>questionMarks.has(i)?-1:v);
+    grid[seedIndex]=seedValue;
+    let changed=true, guard=0;
+    while(changed && guard++<size*size+10){
+      changed=false;
+      for(let r=0;r<size;r++){
+        const vals=Array.from({length:size},(_,c)=>grid[idx(r,c)]);
+        const pats=possibleLinePatterns(rowHints[r],vals);
+        if(!pats.length)return {contradiction:true,grid};
+        for(let c=0;c<size;c++) if(grid[idx(r,c)]===-1){
+          const v=pats[0][c];
+          if(pats.every(p=>p[c]===v)){grid[idx(r,c)]=v;changed=true;}
+        }
+      }
+      for(let c=0;c<size;c++){
+        const vals=Array.from({length:size},(_,r)=>grid[idx(r,c)]);
+        const pats=possibleLinePatterns(colHints[c],vals);
+        if(!pats.length)return {contradiction:true,grid};
+        for(let r=0;r<size;r++) if(grid[idx(r,c)]===-1){
+          const v=pats[0][r];
+          if(pats.every(p=>p[r]===v)){grid[idx(r,c)]=v;changed=true;}
+        }
+      }
+    }
+    return {contradiction:false,grid};
+  }
+
+  const unknown=[];
+  for(let i=0;i<current.length;i++) if(current[i]===-1 || questionMarks.has(i)) unknown.push(i);
+  for(const i of unknown){
+    const black=virtualSolve(i,1), white=virtualSolve(i,0);
+    const r=Math.floor(i/size), c=i%size;
+    if(black.contradiction && !white.contradiction){
+      applyCells([[r,c]],0);
+      showSolverLog(7,"row",r,"none",[[r,c,0]],`Assuming R${r+1}C${c+1} is BLACK eventually makes a row or column impossible, so it must be WHITE.`);
+      logic7WasUsed=true;
+      return true;
+    }
+    if(white.contradiction && !black.contradiction){
+      applyCells([[r,c]],1);
+      showSolverLog(7,"row",r,"none",[[r,c,1]],`Assuming R${r+1}C${c+1} is WHITE eventually makes a row or column impossible, so it must be BLACK.`);
+      logic7WasUsed=true;
+      return true;
+    }
+    if(!black.contradiction && !white.contradiction){
+      const common=[];
+      for(let j=0;j<current.length;j++){
+        if(j===i || (current[j]!==-1 && !questionMarks.has(j)))continue;
+        if(black.grid[j]!==-1 && black.grid[j]===white.grid[j]){
+          common.push([Math.floor(j/size),j%size,black.grid[j]]);
+        }
+      }
+      if(common.length){
+        const blacks=common.filter(x=>x[2]===1).map(x=>[x[0],x[1]]);
+        const whites=common.filter(x=>x[2]===0).map(x=>[x[0],x[1]]);
+        if(blacks.length)applyCells(blacks,1);
+        if(whites.length)applyCells(whites,0);
+        showSolverLog(7,"row",r,"none",common,`Trying both BLACK and WHITE at R${r+1}C${c+1} leads to the same result for these cells, so those results are forced.`);
+        logic7WasUsed=true;
+      return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+function logic8Once(){
+  if(importedWithoutAnswer){ $("#status").textContent="Logic 8 is unavailable for clue-only imports (no answer is stored)."; return false; }
+  // Logic 8: absolute last resort. Reveal one unresolved cell directly from
+  // the stored answer and mark it with * so the player can see that this cell
+  // was not obtained by deduction.
+  for(let i=0;i<current.length;i++){
+    if(current[i]!==-1 && !questionMarks.has(i))continue;
+    const r=Math.floor(i/size), c=i%size, value=answer[i];
+    const old=current[i], hadQuestion=questionMarks.has(i);
+    history.push([[i,old,hadQuestion]]);
+    questionMarks.delete(i);
+    current[i]=value;
+    logic8Reveals.add(i);
+    paintCell(r,c);
+    updateStats();
+    check(false);
+    showSolverLog(8,"row",r,"none",[[r,c,value]],`Last resort: R${r+1}C${c+1} was revealed directly from the answer. The * marks it as a revealed cell.`);
+    return true;
+  }
+  return false;
+}
+
+function useActionableClueOnce(){
+  for(let r=0;r<size;r++){
+    const el=$("#rs-"+r);
+    if(el && el.classList.contains("actionable")){
+      const before=history.length;
+      finishLine("row",r);
+      if(history.length>before){
+        const changes=history[history.length-1].map(([i])=>[Math.floor(i/size),i%size,current[i]]);
+        showSolverLog(1,"row",r,"bothRow",changes,"The row clue is actionable, so the remaining forced cells can be filled.");
+        return true;
+      }
+    }
+  }
+  for(let c=0;c<size;c++){
+    const el=$("#cs-"+c);
+    if(el && el.classList.contains("actionable")){
+      const before=history.length;
+      finishLine("col",c);
+      if(history.length>before){
+        const changes=history[history.length-1].map(([i])=>[Math.floor(i/size),i%size,current[i]]);
+        showSolverLog(1,"col",c,"bothCol",changes,"The column clue is actionable, so the remaining forced cells can be filled.");
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function applyLogicNumber(n){
+  if(revealed)return false;
+  let moved=false;
+  if(n===1)moved=useActionableClueOnce();
+  if(n===2)moved=logic2Once();
+  if(n===3)moved=logic3Once();
+  if(n===4)moved=logic4Once();
+  if(n===5)moved=logic5Once();
+  if(n===6)moved=logic6Once();
+  if(n===7)moved=logic7Once();
+  if(n===8)moved=logic8Once();
+  if(!moved) $("#status").textContent=`No Logic ${n} move available.`;
+  return moved;
+}
+function hint(){
+  if(revealed)return;
+  if(useActionableClueOnce())return;
+  if(logic2Once())return;
+  if(logic3Once())return;
+  if(logic4Once())return;
+  if(logic5Once())return;
+  if(logic6Once())return;
+  if(logic7Once())return;
+  if(logic8Once())return;
+  $("#status").textContent="No Logic 1–8 move available.";
+}
+async function solve(){
+  if(revealed)return;
+  $("#solveBtn").disabled=true;
+  let moved=false;
+  try{
+    while(true){
+      let didMove=useActionableClueOnce();
+      if(!didMove)didMove=logic2Once();
+      if(!didMove)didMove=logic3Once();
+      if(!didMove)didMove=logic4Once();
+      if(!didMove)didMove=logic5Once();
+      if(!didMove)didMove=logic6Once();
+      if(!didMove)didMove=logic7Once();
+      if(!didMove)didMove=logic8Once();
+      if(!didMove)break;
+      moved=true;
+      await new Promise(resolve=>setTimeout(resolve,180));
+    }
+    if(!moved) $("#status").textContent="No Logic 1–8 move available.";
+  }finally{$("#solveBtn").disabled=false;}
+}
+
+function checkNow(){
+  if(revealed)return;
+  if(importedWithoutAnswer){
+    let filled=0, contradiction=false;
+    for(let i=0;i<current.length;i++) if(current[i]!==-1 && !questionMarks.has(i)) filled++;
+    for(let r=0;r<size;r++) if(!possibleLinePatterns(rowHints[r],lineVals("row",r)).length) contradiction=true;
+    for(let c=0;c<size;c++) if(!possibleLinePatterns(colHints[c],lineVals("col",c)).length) contradiction=true;
+    const won=check(true);
+    if(!won) $("#status").textContent=contradiction ? "The current marks contradict at least one clue." : (filled===size*size ? "All cells are marked, but the clues do not match." : "No clue contradictions so far.");
+    return;
+  }
+  let wrong=0, filled=0;
+  for(let i=0;i<current.length;i++){
+    if(current[i]!==-1 && !questionMarks.has(i)){
+      filled++;
+      if(current[i]!==answer[i])wrong++;
+    }
+  }
+  check(false);
+  const status=$("#status");
+  if(wrong) status.textContent=`${wrong} incorrect cell${wrong===1?"":"s"} found.`;
+  else if(filled===size*size) status.textContent="Everything is correct.";
+  else status.textContent="No mistakes so far.";
+}
+function toggleReveal(){
+  if(importedWithoutAnswer){ $("#status").textContent="Show Solution is unavailable for clue-only imports."; return; }
+  revealed=!revealed;paintAll();
+  $("#revealBtn").textContent=revealed?"Hide Solution":"Show Solution";
+  $("#status").textContent=revealed?"Answer shown.":"";
+}
+
+$("#newBtn").addEventListener("click",generate);
+$("#manualBtn").addEventListener("click",openManualEntry);
+$("#importBtn").addEventListener("click",()=>{
+  $("#importOverlay").classList.add("open");
+  $("#importText").focus();
+});
+$("#importCancel").addEventListener("click",()=>$("#importOverlay").classList.remove("open"));
+$("#importStart").addEventListener("click",()=>{
+  try{ importPuzzleText(); }
+  catch(err){ alert(`Could not import puzzle: ${err.message}`); }
+});
+$("#manualCancel").addEventListener("click",()=>$("#manualOverlay").classList.remove("open"));
+$("#manualStart").addEventListener("click",startManualGame);
+$("#undoBtn").addEventListener("click",undo);
+$("#hintBtn").addEventListener("click",hint);
+$("#solveBtn").addEventListener("click",solve);
+$("#checkBtn").addEventListener("click",checkNow);
+$("#revealBtn").addEventListener("click",toggleReveal);
+$("#size").addEventListener("change",generate);
+$("#density").addEventListener("change",generate);
+window.addEventListener("resize",()=>{
+  const old=getComputedStyle(document.documentElement).getPropertyValue("--cell");
+  setResponsiveCellSize();
+});
+document.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="h")hint();
+  if(k==="s")solve();
+  if(/^[1-8]$/.test(k))applyLogicNumber(+k);
+  if(k==="z")undo();
+  if(k==="v")toggleReveal();
+  if(k==="p")generate();
+});
+
+function bindMobileTools(){
+  document.querySelectorAll(".mobileTool").forEach(btn=>btn.addEventListener("click",()=>{
+    touchMode=btn.dataset.mode;
+    document.querySelectorAll(".mobileTool").forEach(b=>b.classList.toggle("active",b===btn));
+    const board=$("#board"); if(board)board.classList.toggle("panMode",touchMode==="pan");
+  }));
+}
+
+bindMobileTools();
+generate();
+</script>
+</body>
+</html>
