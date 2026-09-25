@@ -8,6 +8,7 @@
 <style>
 :root{
   --cell: 38px;
+  --rowClueCell:24px;
   --thin:#9aa0a6;
   --thick:#202124;
   --unknown:#bdbdbd;
@@ -148,7 +149,13 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
   .help .desktopHelp{display:none}
   .cell{touch-action:none}
   .board.panMode .cell{touch-action:pan-x pan-y}
-  .scroll{overscroll-behavior:contain}
+  .scroll{overscroll-behavior:contain;padding-left:0;padding-right:0}
+  .puzzle{padding:4px}
+  .hintLeftCell{min-width:0;padding-right:2px}
+  .sumCell{min-width:30px}
+}
+@media(max-width:650px){
+  :root{--rowClueCell:14px}
 }
 
 </style>
@@ -319,26 +326,28 @@ function stopTimer(){
 }
 function setResponsiveCellSize(){
   const scroll=document.querySelector(".scroll");
-  const available=scroll ? scroll.clientWidth : Math.max(320,window.innerWidth-28);
+  const available=scroll ? scroll.clientWidth : Math.max(320,window.innerWidth-16);
+  const coarse=window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth<=650;
 
-  // Measure the non-board horizontal space using conservative allowances.
-  // Large boards have longer row clues and two-digit X(Y) values.
-  const leftClues=size>=20 ? 150 : size>=15 ? 125 : 100;
-  const rightClues=size>=20 ? 72 : 62;
-  const puzzlePadding=30;
-  const usable=Math.max(250,available-leftClues-rightClues-puzzlePadding);
+  // Use the ACTUAL number of row-clue groups instead of a large fixed allowance.
+  // On phones each clue gets a compact slot, which gives substantially more width
+  // back to the playing grid.
+  const maxRowGroups=Math.max(1,...(rowHints||[]).map(h=>h.length));
+  const rowClueSlot=coarse ? 14 : 24;
+  document.documentElement.style.setProperty("--rowClueCell",rowClueSlot+"px");
+  const leftClues=maxRowGroups*rowClueSlot;
+  const rightClues=coarse ? 34 : (size>=20 ? 72 : 62);
+  const puzzlePadding=coarse ? 8 : 30;
+  const usable=Math.max(1,available-leftClues-rightClues-puzzlePadding);
 
-  // No minimum cell size: fitting the complete puzzle takes priority.
+  // On mobile, fitting the complete grid width takes priority. 30x30 boards may
+  // therefore use cells below 10px rather than forcing horizontal scrolling.
   const maxCell=38;
-  const coarse=window.matchMedia?.("(pointer: coarse)")?.matches;
-  // On touch screens, keep cells large enough to tap. Large puzzles can be panned with Move mode.
-  const minCell=coarse ? 24 : 10;
+  const minCell=coarse ? 6 : 10;
   const cell=Math.max(minCell,Math.min(maxCell,Math.floor(usable/size)));
   document.documentElement.style.setProperty("--cell",cell+"px");
-
-  // Scale clue text with the cells on large boards.
   document.documentElement.style.setProperty("--clueFont",
-    (cell<=18 ? 10 : cell<=23 ? 11 : cell<=29 ? 12 : 14)+"px");
+    (cell<=9 ? 8 : cell<=14 ? 9 : cell<=18 ? 10 : cell<=23 ? 11 : cell<=29 ? 12 : 14)+"px");
 }
 
 
@@ -536,7 +545,7 @@ function render(){
   }
 
   const left=document.createElement("div"); left.className="leftHints";
-  left.style.gridTemplateColumns=`repeat(${maxRow},24px)`;
+  left.style.gridTemplateColumns=`repeat(${maxRow},var(--rowClueCell))`;
   left.style.gridTemplateRows=`repeat(${size},var(--cell))`;
   for(let r=0;r<size;r++) for(let cc=0;cc<maxRow;cc++){
     const d=document.createElement("div"); d.className=`hintLeftCell rowhint-${r}`;
