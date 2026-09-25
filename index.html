@@ -137,7 +137,7 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
 /* Mobile touch controls */
 .mobileTools{display:none;position:sticky;top:0;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:7px;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 8px #0001}
 .mobileTools .mobileLabel{font-size:12px;font-weight:700;color:#64748b;margin-right:2px}
-.mobileTool{padding:8px 10px;min-width:48px}
+.mobileTool,.mobileUndo{padding:8px 10px;min-width:48px}
 .mobileTool.active{background:#2563eb;color:#fff;border-color:#2563eb}
 .mobileTool[data-mode="white"].active{background:#64748b;border-color:#64748b}
 .mobileTool[data-mode="question"].active{background:#7c3aed;border-color:#7c3aed}
@@ -221,6 +221,7 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
     <button type="button" class="mobileTool" data-mode="question">? Mark</button>
     <button type="button" class="mobileTool" data-mode="erase">× Clear</button>
     <button type="button" class="mobileTool" data-mode="pan">↔ Move</button>
+    <button type="button" class="mobileUndo" id="mobileUndoBtn">↶ Undo</button>
   </div>
 
   <div class="workspace">
@@ -1446,6 +1447,8 @@ document.addEventListener("keydown",e=>{
 });
 
 function bindMobileTools(){
+  $("#mobileUndoBtn")?.addEventListener("click",undo);
+
   document.querySelectorAll(".mobileTool").forEach(btn=>btn.addEventListener("click",()=>{
     touchMode=btn.dataset.mode;
     document.querySelectorAll(".mobileTool").forEach(b=>b.classList.toggle("active",b===btn));
