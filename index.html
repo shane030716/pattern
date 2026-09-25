@@ -100,8 +100,8 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
 }
 .win-banner{position:fixed;left:50%;top:43%;transform:translate(-50%,-50%) scale(.5);z-index:101;
  background:#fff;border:2px solid #d8dee6;border-radius:18px;padding:18px 30px;text-align:center;
- box-shadow:0 18px 60px #0004;pointer-events:none;opacity:0;animation:bannerIn .35s ease forwards}
-.win-banner b{display:block;font-size:32px}.win-banner span{color:#667085;font-weight:650}
+ box-shadow:0 18px 60px #0004;pointer-events:auto;opacity:0;animation:bannerIn .35s ease forwards}
+.win-banner b{display:block;font-size:32px}.win-banner span{color:#667085;font-weight:650}.win-close{position:absolute;top:7px;right:9px;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:#667085;font-size:24px;font-weight:500;line-height:30px;cursor:pointer}.win-close:hover{background:#f3f4f6;color:#111827}
 @keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 
 .status{margin-top:10px;font-size:14px;min-height:20px}
@@ -183,14 +183,14 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
       </label>
       <label>Black Density
         <select id="density">
-          <option value="auto" selected>Auto</option>
-          <option value="30">30%</option>
-          <option value="40">40%</option>
-          <option value="50">50%</option>
-          <option value="60">60%</option>
-          <option value="70">70%</option>
-          <option value="80">80%</option>
-          <option value="90">90%</option>
+          <option value="balanced" selected>Balance</option>
+          <option value="30">Random 30%</option>
+          <option value="40">Random 40%</option>
+          <option value="50">Random 50%</option>
+          <option value="60">Random 60%</option>
+          <option value="70">Random 70%</option>
+          <option value="80">Random 80%</option>
+          <option value="90">Random 90%</option>
         </select>
       </label>
       <button class="primary" id="newBtn">New Puzzle</button>
@@ -287,14 +287,138 @@ const $ = s => document.querySelector(s);
 const idx=(r,c)=>r*size+c;
 
 function updateAutoDensityLabel(){
-  const sel=$("#density");
-  if(!sel)return;
-  const opt=sel.querySelector('option[value="auto"]');
-  if(opt) opt.textContent=`Auto (${densityFor(Number($("#size").value))}%)`;
+  // Kept for compatibility with the existing size/import code.
+  // Balanced is always a 50% target; Random modes use their selected percentage.
 }
-function densityFor(n){
-  return n===5?50:n===10?60:n===15?70:n===20?80:90;
+function densityFor(n){ return 50; }
+
+function generateBalancedBoard(n){
+  const total=n*n, target=Math.round(total/2), at=(r,c)=>r*n+c;
+  const board=Array(total).fill(0);
+
+  // BALANCE: build an exact-50% board, then shape its run statistics.
+  // This does NOT solve/test/reject puzzles. It only evaluates the picture itself.
+  // Desired texture scales with board size: larger boards use fewer
+  // tiny fragments and progressively more medium/long runs.
+  const order=Array.from({length:total},(_,i)=>i);
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+  for(let k=0;k<target;k++)board[order[k]]=1;
+
+  function runsOf(vals){
+    const out=[]; let run=0;
+    for(let i=0;i<=vals.length;i++){
+      if(i<vals.length && vals[i])run++;
+      else if(run){out.push(run);run=0;}
+    }
+    return out;
+  }
+  function score(){
+    let cost=0, runCount=0, singles=0, twos=0, mid=0, sixEight=0, nineTwelve=0;
+    const all=[];
+    for(let r=0;r<n;r++){
+      const vals=[];for(let c=0;c<n;c++)vals.push(board[at(r,c)]);
+      all.push(...runsOf(vals));
+    }
+    for(let c=0;c<n;c++){
+      const vals=[];for(let r=0;r<n;r++)vals.push(board[at(r,c)]);
+      all.push(...runsOf(vals));
+    }
+    for(const len of all){
+      runCount++;
+      if(len===1)singles++;
+      else if(len===2)twos++;
+      else if(len>=3&&len<=5)mid++;
+      else if(len>=6&&len<=8)sixEight++;
+      else if(len>=9&&len<=12)nineTwelve++;
+      const softMax=n>=30?23:(n>=25?21:(n>=20?18:(n>=15?10:7)));
+      if(len>softMax)cost+=(len-softMax)*(len-softMax)*6;
+    }
+    // Encourage the reference-like mixture rather than either static or blobs.
+    if(runCount){
+      const sr=singles/runCount;
+      // Size-scaled Balance profile. Larger boards deliberately shift
+      // probability away from 1–2 cell fragments and toward longer runs.
+      const r2=twos/runCount, r35=mid/runCount, r68=sixEight/runCount, r912=nineTwelve/runCount;
+      let ts,tr2,t35,t68,t912;
+      if(n>=30){
+        ts=.002; tr2=.032; t35=.226; t68=.420; t912=.320;
+      }else if(n>=25){
+        ts=.003; tr2=.040; t35=.250; t68=.417; t912=.290;
+      }else if(n>=20){
+        ts=.004; tr2=.050; t35=.274; t68=.407; t912=.265;
+      }else if(n>=15){
+        ts=.16; tr2=.20; t35=.43; t68=.16; t912=.05;
+      }else{
+        ts=.21; tr2=.25; t35=.43; t68=.09; t912=.02;
+      }
+      cost+=Math.abs(sr-ts)*260;
+      cost+=Math.abs(r2-tr2)*90;
+      cost+=Math.abs(r35-t35)*115;
+      cost+=Math.abs(r68-t68)*90;
+      cost+=Math.abs(r912-t912)*75;
+    }
+    // Avoid nearly solid or nearly empty lines.
+    for(let r=0;r<n;r++){
+      let x=0;for(let c=0;c<n;c++)x+=board[at(r,c)];
+      if(x<Math.max(2,n*.18))cost+=(n*.18-x)*3;
+      if(x>n*.82)cost+=(x-n*.82)*3;
+    }
+    for(let c=0;c<n;c++){
+      let x=0;for(let r=0;r<n;r++)x+=board[at(r,c)];
+      if(x<Math.max(2,n*.18))cost+=(n*.18-x)*3;
+      if(x>n*.82)cost+=(x-n*.82)*3;
+    }
+    // On larger boards, gently encourage black cells to form more cohesive
+    // local shapes. Penalize isolated/single-neighbour black cells and tiny
+    // enclosed white holes. This is deliberately mild so it doesn't create bars.
+    if(n>=25){
+      for(let r=0;r<n;r++)for(let c=0;c<n;c++){
+        const i=at(r,c);
+        let nb=0, neighbours=0;
+        if(r>0){neighbours++;nb+=board[at(r-1,c)];}
+        if(r<n-1){neighbours++;nb+=board[at(r+1,c)];}
+        if(c>0){neighbours++;nb+=board[at(r,c-1)];}
+        if(c<n-1){neighbours++;nb+=board[at(r,c+1)];}
+        if(board[i]){
+          if(nb===0)cost+=2.8;
+          else if(nb===1)cost+=0.65;
+        }else if(neighbours===4){
+          if(nb===4)cost+=2.2;
+          else if(nb===3)cost+=0.30;
+        }
+      }
+    }
+
+    // Keep each coarse region reasonably close to 50%, without making it uniform.
+    const z=n>=25?5:4;
+    for(let zr=0;zr<z;zr++)for(let zc=0;zc<z;zc++){
+      const r0=Math.floor(zr*n/z),r1=Math.floor((zr+1)*n/z),c0=Math.floor(zc*n/z),c1=Math.floor((zc+1)*n/z);
+      let black=0,cells=0;
+      for(let r=r0;r<r1;r++)for(let c=c0;c<c1;c++){black+=board[at(r,c)];cells++;}
+      const d=black/cells;
+      if(d<.20)cost+=(.20-d)*18;
+      if(d>.80)cost+=(d-.80)*18;
+    }
+    return cost;
+  }
+
+  // Swap one black and one white cell at a time, so the density stays exact.
+  // Simulated annealing lets irregular shapes form instead of converging to stripes.
+  let cur=score();
+  const steps=n>=30?4200:n>=20?3200:2200;
+  for(let step=0;step<steps;step++){
+    let bi,wi;
+    do{bi=Math.floor(Math.random()*total);}while(board[bi]!==1);
+    do{wi=Math.floor(Math.random()*total);}while(board[wi]!==0);
+    board[bi]=0;board[wi]=1;
+    const next=score();
+    const t=2.2*(1-step/steps)+.08;
+    if(next<=cur || Math.random()<Math.exp((cur-next)/t))cur=next;
+    else{board[bi]=1;board[wi]=0;}
+  }
+  return board;
 }
+
 function runHints(values){
   const out=[]; let run=0;
   for(let i=0;i<values.length;i++){
@@ -506,10 +630,14 @@ function generate(){
   updateAutoDensityLabel();
   divider=5;
   const densitySetting=$("#density").value;
-  probability=densitySetting==="auto" ? densityFor(size) : Number(densitySetting);
+  probability=densitySetting==="balanced" ? 50 : Number(densitySetting);
 
   answer=[]; importedWithoutAnswer=false; current=Array(size*size).fill(-1); history=[]; revealed=false; questionMarks.clear(); logic8Reveals.clear(); logic7WasUsed=false;
-  for(let i=0;i<size*size;i++) answer.push(Math.random()*100 < probability ? 1 : 0);
+  if(densitySetting==="balanced"){
+    answer=generateBalancedBoard(size);
+  }else{
+    for(let i=0;i<size*size;i++) answer.push(Math.random()*100 < probability ? 1 : 0);
+  }
 
   rowHints=[]; colHints=[]; rowSums=[]; colSums=[];
   for(let r=0;r<size;r++){
@@ -869,7 +997,8 @@ function celebrateWin(){
 
   const banner=document.createElement("div");
   banner.className="win-banner";
-  banner.innerHTML=`<b>🎉 Solved!</b><span>Time: ${formatTime(elapsedSeconds)}</span><span class="win-sep">Logic 7: ${logic7WasUsed ? "USED" : "Not used"}</span>`;
+  banner.innerHTML=`<button class="win-close" type="button" aria-label="Close solved window">×</button><b>🎉 Solved!</b><span>Time: ${formatTime(elapsedSeconds)}</span><span class="win-sep">Logic 7: ${logic7WasUsed ? "USED" : "Not used"}</span>`;
+  banner.querySelector(".win-close").addEventListener("click",()=>banner.remove());
   document.body.appendChild(banner);
   // Keep the solved banner visible until a new puzzle/reset replaces it.
 }
