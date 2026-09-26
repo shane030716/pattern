@@ -212,6 +212,7 @@ kbd{font-family:inherit;font-size:11px;font-weight:700;background:#f3f4f6;border
       <button id="solveBtn">Solve</button>
       <button id="checkBtn">Check</button>
       <button id="clearBoardBtn">Clear Board</button>
+      <button id="soundBtn">Sound: On</button>
       <button id="revealBtn">Show Solution</button>
     </div>
   </div>
@@ -999,7 +1000,9 @@ function bindBoard(){
         if(touchMode==="erase")value=-1;
         else value=touchMode==="white"?0:1;
       }
+      const beforeFilled=current.filter(v=>v!==-1).length;
       applyCells(cells,value);
+      soundForValue(value);
     }
     suppressClick=d.moved;
   });
@@ -1060,7 +1063,42 @@ function renderSum(el,x,y,done,blackDone,isBottom=false){
     el.innerHTML=`<span class="${xClass}">${x}</span> <span>(</span><span class="${yClass}">${y}</span><span>)</span>`;
   }
 }
+let soundEnabled=true;
+let audioCtx=null;
+function getAudioCtx(){
+  if(!soundEnabled)return null;
+  if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==="suspended")audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq,duration=.045,volume=.035,type="sine",delay=0){
+  const ac=getAudioCtx(); if(!ac)return;
+  const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime+delay;
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(volume,t+.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+duration);
+  o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+duration+.02);
+}
+function playSound(kind){
+  if(!soundEnabled)return;
+  if(kind==="black")tone(220,.04,.025,"square");
+  else if(kind==="white")tone(420,.035,.018,"sine");
+  else if(kind==="erase")tone(160,.035,.018,"sine");
+  else if(kind==="undo"){tone(330,.04,.022,"sine");tone(245,.05,.018,"sine",.045);}
+  else if(kind==="clear"){tone(260,.04,.018,"sine");tone(190,.06,.016,"sine",.045);}
+  else if(kind==="hint"){tone(520,.045,.022,"sine");tone(660,.055,.020,"sine",.05);}
+  else if(kind==="win"){
+    tone(523,.10,.035,"sine",0);
+    tone(659,.10,.035,"sine",.10);
+    tone(784,.11,.038,"sine",.20);
+    tone(1047,.24,.045,"sine",.31);
+  }
+}
+function soundForValue(v){playSound(v===1?"black":v===0?"white":"erase");}
+
 function celebrateWin(){
+  playSound("win");
   const puzzle=document.querySelector(".puzzle");
   puzzle.classList.remove("win-pop");
   void puzzle.offsetWidth;
@@ -1082,7 +1120,7 @@ function celebrateWin(){
 
   const banner=document.createElement("div");
   banner.className="win-banner";
-  banner.innerHTML=`<button class="win-close" type="button" aria-label="Close solved window">×</button><b>🎉 Solved!</b><span>Time: ${formatTime(elapsedSeconds)}</span><span class="win-sep">Logic 7: ${logic7WasUsed ? "USED" : "Not used"}</span>`;
+  banner.innerHTML=`<button class="win-close" type="button" aria-label="Close solved window">×</button><b>🎉 Solved!</b><span>Time: ${formatTime(elapsedSeconds)}</span>`;
   banner.querySelector(".win-close").addEventListener("click",()=>banner.remove());
   document.body.appendChild(banner);
   // Keep the solved banner visible until a new puzzle/reset replaces it.
@@ -1132,6 +1170,7 @@ function check(showWin){
 }
 function undo(){
   if(revealed||!history.length)return;
+  playSound("undo");
   const changes=history.pop();
   for(const change of changes){
     const [i,old,hadQuestion=false]=change;
@@ -1576,6 +1615,7 @@ function applyLogicNumber(n){
 }
 function hint(){
   if(revealed)return;
+  playSound("hint");
   if(useActionableClueOnce())return;
   if(logic2Once())return;
   if(logic3Once())return;
@@ -1639,6 +1679,7 @@ function toggleReveal(){
   $("#status").textContent=revealed?"Answer shown.":"";
 }
 function clearBoard(){
+  playSound("clear");
   clearWinBanner();
   current=Array(size*size).fill(-1);
   history=[];
@@ -1671,6 +1712,11 @@ $("#hintBtn").addEventListener("click",hint);
 $("#solveBtn").addEventListener("click",solve);
 $("#checkBtn").addEventListener("click",checkNow);
 $("#clearBoardBtn").addEventListener("click",clearBoard);
+$("#soundBtn").addEventListener("click",()=>{
+  soundEnabled=!soundEnabled;
+  $("#soundBtn").textContent=`Sound: ${soundEnabled?"On":"Off"}`;
+  if(soundEnabled)tone(440,.05,.025,"sine");
+});
 $("#revealBtn").addEventListener("click",toggleReveal);
 $("#size").addEventListener("change",generate);
 $("#density").addEventListener("change",generate);
