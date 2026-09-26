@@ -886,7 +886,12 @@ function finishLine(type,n){
       changes.push([i,current[i],questionMarks.has(i)]); questionMarks.delete(i); current[i]=value; paintCell(r,c);
     }
   }
-  if(changes.length){history.push(changes);updateStats();check(true);}
+  if(changes.length){
+    history.push(changes);
+    playSound("clue");
+    updateStats();
+    check(true);
+  }
 }
 
 function bindSumClues(){
@@ -1088,6 +1093,11 @@ function playSound(kind){
   else if(kind==="undo"){tone(330,.04,.022,"sine");tone(245,.05,.018,"sine",.045);}
   else if(kind==="clear"){tone(260,.04,.018,"sine");tone(190,.06,.016,"sine",.045);}
   else if(kind==="hint"){tone(520,.045,.022,"sine");tone(660,.055,.020,"sine",.05);}
+  else if(kind==="clue"){
+    tone(523,.055,.030,"sine",0);
+    tone(659,.060,.032,"sine",.045);
+    tone(784,.095,.036,"sine",.090);
+  }
   else if(kind==="win"){
     tone(523,.10,.035,"sine",0);
     tone(659,.10,.035,"sine",.10);
